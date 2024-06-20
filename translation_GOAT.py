@@ -28,10 +28,19 @@ from nltk.tokenize import word_tokenize
 
 
 # Use your own API key
-openai.api_key = os.environ["OPENAI_API_KEY"]
+#openai.api_key = os.environ["OPENAI_API_KEY"]
+#Elevenlabs API key
+#user = os.environ["user"]
+
+# Use your own API key
+with open("openai-api-key.txt") as f:
+	openai.api_key = f.read().strip()	
+print(openai.api_key)
 
 #Elevenlabs API key
-user = os.environ["user"]
+with open("elevenlabs_api_key.txt") as f:
+	user = f.read().strip()
+print(user)
 
 transcript = []
 
@@ -100,6 +109,7 @@ def upload():
 
             # Transcribe video and generate timestamped transcript
             transcript = transcribe_video(filepath)
+            print("Transcript youtubevid =")
             print(transcript)
             current_filepath = filepath
             return render_template('audio.html', video_url=filepath, transcript=transcript)
@@ -157,10 +167,14 @@ def play_file(filename):
 #For generating the transcript with wisper
 def transcribe_video(filepath):
 
+    print("file =")
+    print(filepath)
     video = VideoFileClip(filepath)
     segment_duration = 10 * 60  # seconds
     transcripts = []
     num_segments = math.ceil(video.duration / segment_duration)
+    print("Number of segments =")
+    print(num_segments)
 
     # Loop through the segments
     for i in range(num_segments):
@@ -210,7 +224,8 @@ def transcribe_audio(filepath):
 
 
 #Training with the speakers voice
-def transcribe_video(filepath):
+#old function name was the same and in conflict with: def transcribe_video(filepath):
+def define_voice(filepath):
     global voice
     video = VideoFileClip(filepath)
     segment_duration = video.duration / 2
@@ -224,11 +239,12 @@ def transcribe_video(filepath):
         segment_name = f"segment_{i+1}.mp3"
         segment.audio.write_audiofile(segment_name)
         
-    voice = get_audio("segment_1.mp3", "segment_2.mp3")
+    #voice = get_audio("segment_1.mp3", "segment_2.mp3")
+    voice = "21m00Tcm4TlvDq8ikWAM"
 
     # Delete the segment MP3 file
     os.remove("segment_1.mp3")
-    os.remove("segment_1.mp3")
+    os.remove("segment_2.mp3")
     print(f"Voice ID = {voice}")
 
 
@@ -239,7 +255,7 @@ def get_audio(voice_i, voice_ii):
 
     headers = {
         "Accept": "application/json",
-        "xi-api-key": XI_API_KEY
+        "xi-api-key": user #XI_API_KEY
     }
 
     data = {
@@ -271,6 +287,8 @@ def handle_conversation(user_input):
 
     global bot_response
 
+    print("Transcript=")
+    print(transcript)
 
     if len(word_tokenize(transcript)) <= 3000:
 

@@ -1,0 +1,5 @@
+openai-api-key.txt
+elevenlabs_api_key.txt
+audio-translation-venv/
+*.mp*
+*_pycache*

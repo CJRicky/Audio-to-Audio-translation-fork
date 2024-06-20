@@ -28,10 +28,14 @@ from nltk.tokenize import word_tokenize
 
 
 # Use your own API key
-openai.api_key = os.environ["OPENAI_API_KEY"]
+with open("openai-api-key.txt") as f:
+	openai.api_key = f.read()	
+#openai.api_key = os.environ["OPENAI_API_KEY"]
 
 #Elevenlabs API key
-user.api_key = os.environ["OPENAI_API_KEY"]
+with open("elevenlabs_api_key.txt") as f:
+	user = f.read()
+#user.api_key = os.environ["OPENAI_API_KEY"]
 
 
 transcript = []
