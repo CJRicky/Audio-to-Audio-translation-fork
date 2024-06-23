@@ -54,7 +54,8 @@ filepath = None
 
 current_filepath = None
 
-voice = None
+#voice = None
+voice = "21m00Tcm4TlvDq8ikWAM"
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'divine'
@@ -170,24 +171,26 @@ def transcribe_video(filepath):
     print("file =")
     print(filepath)
     video = VideoFileClip(filepath)
-    segment_duration = 10 * 60  # seconds
+    segment_duration = 30  # seconds
+    print("Video duration = ", video.duration)
     transcripts = []
     num_segments = math.ceil(video.duration / segment_duration)
-    print("Number of segments =")
-    print(num_segments)
+    print("Number of segments =", num_segments)
 
     # Loop through the segments
     for i in range(num_segments):
         # Calculate the start and end times for the current segment
+        print("Transcribing segment nr: ", i+1)
         start_time = i * segment_duration
         end_time = min((i + 1) * segment_duration, video.duration)
         segment = video.subclip(start_time, end_time)
+        print("Audio-segment duration: ", segment.duration)
         segment_name = f"segment_{i+1}.mp3"
         segment.audio.write_audiofile(segment_name)
 
         # Pass the audio segment to WISPR for speech recognition
         audio = open(segment_name, "rb")
-        transcripting = openai.Audio.transcribe("whisper-1", audio).text
+        transcripting = openai.audio.transcriptions.create(model="whisper-1", file=audio).text
         transcripts.append(transcripting)
         os.remove(segment_name)
     transcript = "\n".join(transcripts)
@@ -213,7 +216,7 @@ def transcribe_audio(filepath):
 
         # Pass the audio segment to WISPR for speech recognition
         audio = open(segment_name, "rb")
-        transcripting = openai.Audio.transcribe("whisper-1", audio).text
+        transcripting = openai.audio.transcriptions.create("whisper-1", audio).text
         transcripts.append(transcripting)
         os.remove(segment_name)
     transcript = "\n".join(transcripts)
@@ -349,7 +352,8 @@ def generate_response(transcript, user_input):
 
     prompt = f"Translate {transcript} to {user_input}"
 
-    completion = openai.ChatCompletion.create(
+    #completion = openai.ChatCompletion.create(
+    completion = openai.chat.completions.create(
     model="gpt-3.5-turbo",
     messages=[
             {"role": "system", "content": "You're a proffesional language translator"},
@@ -387,6 +391,7 @@ def audio_output(bot_response, voice):
         }
     }
     response = requests.post(url, json=data, headers=headers, stream=True)
+    print(response)
 
 
     audio_data = io.BytesIO()
