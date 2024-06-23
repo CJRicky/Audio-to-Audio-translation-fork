@@ -35,12 +35,10 @@ from nltk.tokenize import word_tokenize
 # Use your own API key
 with open("openai-api-key.txt") as f:
 	openai.api_key = f.read().strip()	
-print(openai.api_key)
 
 #Elevenlabs API key
 with open("elevenlabs_api_key.txt") as f:
 	user = f.read().strip()
-print(user)
 
 transcript = []
 

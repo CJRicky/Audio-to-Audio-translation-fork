@@ -3,3 +3,5 @@ elevenlabs_api_key.txt
 audio-translation-venv/
 *.mp*
 *_pycache*
+*.wav
+*.txt
