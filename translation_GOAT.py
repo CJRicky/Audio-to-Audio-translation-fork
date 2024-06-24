@@ -82,7 +82,15 @@ def upload():
     global current_filepath
 
 
-    if request.method == 'POST':
+    if request.method == 'POST':  
+        checked = 'check' in request.form
+        print(checked)      
+        if request.form.get('two-people-checkbox'):
+            two_people = True 
+        else:
+            two_people = False   
+        two_people = 'two-people-checkbox' in request.form
+        print("two_people = ", two_people)
         if 'file' in request.files:
             file = request.files['file']
             filename = file.filename
@@ -163,7 +171,7 @@ def play_file(filename):
 
 
 
-#For generating the transcript with wisper
+#For generating the transcript with whisper
 def transcribe_video(filepath):
 
     print("file =")
@@ -196,7 +204,7 @@ def transcribe_video(filepath):
     return transcript
 
 
-#For generating of audio the transcript with wisper
+#For generating of audio the transcript with whisper
 def transcribe_audio(filepath):
 
     audio = AudioFileClip(filepath)
@@ -332,7 +340,7 @@ def handle_conversation(user_input):
         joined_response = ' '.join(responses)
         bot_response = joined_response
 
-    new_audio = audio_output(bot_response, voice)
+    new_audio = audio_output_elevenlabs(bot_response, voice)
 
     # Create a Flask response object with the mp3 data and appropriate headers
     response = Response(new_audio, mimetype='audio/mpeg')
@@ -366,7 +374,7 @@ def generate_response(transcript, user_input):
 
 
 #Eleven-labs: Text to audio for new lang
-def audio_output(bot_response, voice):
+def audio_output_elevenlabs(bot_response, voice):
 
     print(voice)
 
