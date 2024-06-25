@@ -12,6 +12,11 @@ import io
 #Elevenlabs:
 import requests
 
+# For TTS (text-to-speach)
+from TTS.utils.manage import ModelManager
+from TTS.utils.synthesizer import Synthesizer
+import wave
+
 #chucking video:
 from moviepy.video.io.VideoFileClip import VideoFileClip
 from pydub import AudioSegment
@@ -25,12 +30,6 @@ from moviepy.audio.io.AudioFileClip import AudioFileClip
 import nltk
 from nltk.tokenize import sent_tokenize
 from nltk.tokenize import word_tokenize
-
-
-# Use your own API key
-#openai.api_key = os.environ["OPENAI_API_KEY"]
-#Elevenlabs API key
-#user = os.environ["user"]
 
 # Use your own API key
 with open("openai-api-key.txt") as f:
@@ -53,7 +52,23 @@ filepath = None
 current_filepath = None
 
 #voice = None
-voice = "21m00Tcm4TlvDq8ikWAM"
+voice = "21m00Tcm4TlvDq8ikWAM" # elevenlabs voice-id
+
+############# setup and load TTS-model #####################
+with open("tts-models-path.txt") as f:
+	path = f.read().strip()	#path = "/path/to/pip/site-packages/TTS/.models.json"
+model_manager = ModelManager(path)
+model_path, config_path, model_item = \
+    model_manager.download_model("tts_models/en/ljspeech/tacotron2-DDC")
+voc_path, voc_config_path, _ = model_manager.download_model(model_item["default_vocoder"])
+syn = Synthesizer(
+    tts_checkpoint=model_path,
+    tts_config_path=config_path,
+    vocoder_checkpoint=voc_path,
+    vocoder_config=voc_config_path
+)
+############################################################
+
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'divine'
@@ -340,7 +355,12 @@ def handle_conversation(user_input):
         joined_response = ' '.join(responses)
         bot_response = joined_response
 
-    new_audio = audio_output_elevenlabs(bot_response, voice)
+    use_TTS = True
+    if use_TTS:
+        audio_output_TTS(bot_response)
+        new_audio = wave.open("audio-tts.wav") # TODO: convert to mp3 or find a way to emit the wav?
+    else:
+        new_audio = audio_output_elevenlabs(bot_response, voice)
 
     # Create a Flask response object with the mp3 data and appropriate headers
     response = Response(new_audio, mimetype='audio/mpeg')
@@ -349,8 +369,6 @@ def handle_conversation(user_input):
     # Emit the audio data to the client-side
     socketio.emit('new_audio', {'data': new_audio, 'type': 'audio/mpeg'})
     socketio.emit('bot_response', bot_response)
-
-
 
 
 #passing transcript or each chucks to chatgpt
@@ -369,8 +387,6 @@ def generate_response(transcript, user_input):
     bot_first_response = completion.choices[0].message.content
 
     return bot_first_response
-
-
 
 
 #Eleven-labs: Text to audio for new lang
@@ -407,8 +423,10 @@ def audio_output_elevenlabs(bot_response, voice):
 
     return audio_data.getvalue()
 
-
-
+def audio_output_TTS(bot_response):
+    outputs = syn.tts(bot_response)
+    syn.save_wav(outputs, "audio-tts.wav")
+    
 #Automatic delele
 @app.route('/delete_video', methods=['POST'])
 def delete_video():
