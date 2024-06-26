@@ -67,6 +67,11 @@ syn = Synthesizer(
     vocoder_checkpoint=voc_path,
     vocoder_config=voc_config_path
 )
+voc_path2, voc_config_path2, _ = model_manager.download_model("vocoder_models/en/ljspeech/multiband-melgan")
+syn2 = Synthesizer(tts_checkpoint=model_path,
+    tts_config_path=config_path,
+    vocoder_checkpoint=voc_path2,
+    vocoder_config=voc_config_path2)
 ############################################################
 
 
@@ -423,9 +428,29 @@ def audio_output_elevenlabs(bot_response, voice):
 
     return audio_data.getvalue()
 
-def audio_output_TTS(bot_response):
-    outputs = syn.tts(bot_response)
-    syn.save_wav(outputs, "audio-tts.wav")
+def audio_output_TTS(bot_response, two_people):
+    if two_people:
+        print("Using two voices")
+        # divide bot_response into list of strings containing speaker1, speaker2, speaker1 ...
+
+        #infiles = ["sound_1.wav", "sound_2.wav"]
+        outfile = "audio-tts.wav"
+
+        data= []
+        for line in lines:
+            #w = wave.open(infile, 'rb')
+            w = syn.tts(bot_response)
+            data.append( [w.getparams(), w.readframes(w.getnframes())] )
+            w.close()
+            
+        output = wave.open(outfile, 'wb')
+        output.setparams(data[0][0])
+        for i in range(len(data)):
+            output.writeframes(data[i][1])
+        output.close()
+    else:
+        outputs = syn.tts(bot_response)
+        syn.save_wav(outputs, "audio-tts.wav")
     
 #Automatic delele
 @app.route('/delete_video', methods=['POST'])
@@ -441,5 +466,3 @@ def delete_video():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5050)
-
-
