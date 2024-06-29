@@ -16,6 +16,7 @@ import requests
 from TTS.utils.manage import ModelManager
 from TTS.utils.synthesizer import Synthesizer
 import wave
+import re
 
 #chucking video:
 from moviepy.video.io.VideoFileClip import VideoFileClip
@@ -53,6 +54,8 @@ current_filepath = None
 
 #voice = None
 voice = "21m00Tcm4TlvDq8ikWAM" # elevenlabs voice-id
+
+two_people = False
 
 ############# setup and load TTS-model #####################
 with open("tts-models-path.txt") as f:
@@ -100,6 +103,7 @@ def upload():
     global conversation_history
     global filepath
     global current_filepath
+    global two_people
 
 
     if request.method == 'POST':  
@@ -322,7 +326,8 @@ def handle_conversation(user_input):
     if len(word_tokenize(transcript)) <= 3000:
 
         print("Token count less = ", len(word_tokenize(str(transcript))))
-        bot_response = generate_response(transcript, user_input)
+        print("Two people = ", two_people)
+        bot_response = generate_response(transcript, user_input, two_people)
         print(f"less than 3000 tokens = {bot_response}\n")
 
     else:
@@ -362,7 +367,7 @@ def handle_conversation(user_input):
 
     use_TTS = True
     if use_TTS:
-        audio_output_TTS(bot_response)
+        audio_output_TTS(bot_response, two_people)
         new_audio = wave.open("audio-tts.wav") # TODO: convert to mp3 or find a way to emit the wav?
     else:
         new_audio = audio_output_elevenlabs(bot_response, voice)
@@ -377,9 +382,14 @@ def handle_conversation(user_input):
 
 
 #passing transcript or each chucks to chatgpt
-def generate_response(transcript, user_input):
+def generate_response(transcript, user_input, two_people):
 
-    prompt = f"Translate {transcript} to {user_input}"
+    if two_people:
+        prompt = (f"Translate {transcript} to {user_input}. Indicate the two persons speaking "
+            "by adding the keywords _speaker1_ and _speaker2_ and whitespaces on each "
+            "side of the keyword. Do this each time the person starts to speak.")
+    else:
+        prompt = f"Translate {transcript} to {user_input}"
 
     #completion = openai.ChatCompletion.create(
     completion = openai.chat.completions.create(
@@ -428,18 +438,30 @@ def audio_output_elevenlabs(bot_response, voice):
 
     return audio_data.getvalue()
 
+
+def split_conversation(l, s):
+    # Create a regex pattern that matches any of the speakers
+    pattern = "|".join(l)
+
+    # Use the pattern to split the string
+    m = re.split(pattern, s)
+    
+    return [i.strip() for i in m if i] # removes leading/trailing white spaces and empty strings
+
 def audio_output_TTS(bot_response, two_people):
     if two_people:
         print("Using two voices")
         # divide bot_response into list of strings containing speaker1, speaker2, speaker1 ...
 
         #infiles = ["sound_1.wav", "sound_2.wav"]
-        outfile = "audio-tts.wav"
+        outfile = "audio-tts-2p.wav"
+
+        lines = split_conversation(["_speaker1_", "_speaker2_"], bot_response)
 
         data= []
         for line in lines:
             #w = wave.open(infile, 'rb')
-            w = syn.tts(bot_response)
+            w = syn.tts(line)
             data.append( [w.getparams(), w.readframes(w.getnframes())] )
             w.close()
             
