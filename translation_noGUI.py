@@ -19,6 +19,19 @@ import nltk
 from nltk.tokenize import sent_tokenize
 from nltk.tokenize import word_tokenize
 
+from pyannote.audio import Pipeline
+# Use your HF key
+with open("HF_token.txt") as f:
+	HF_key = f.read().strip()	
+pipeline = Pipeline.from_pretrained(
+    "pyannote/speaker-diarization-3.1",
+    use_auth_token=HF_key)
+
+# send pipeline to GPU (when available)
+#import torch
+#pipeline.to(torch.device("cuda"))
+
+
 # Use your own API key
 with open("openai-api-key.txt") as f:
 	openai.api_key = f.read().strip()	
@@ -47,6 +60,27 @@ def transcribe_video(filepath):
     print("file =")
     print(filepath)
     video = VideoFileClip(filepath)
+    audio = video.audio
+
+    mp3_file = "./mp3-files/audio.mp3"
+    wav_file = "./wav-files/audio.wav"
+    audio.write_audiofile(mp3_file)
+
+    audio = AudioSegment.from_mp3(mp3_file)
+    audio.export(wav_file, format="wav")
+
+    audio = wave.open(wav_file, mode='rb')
+
+    # apply pretrained pipeline
+    diarization = pipeline(wav_file)
+
+    # print the result
+    # TODO: make array of spekaers = [speaker1, speaker2, speaker1, ...] and their times
+    # times = [[start stop], [start stop], ....]
+    # then make new wav files for speaker1, speaker2, speaker1...etc
+    for turn, _, speaker in diarization.itertracks(yield_label=True):
+        print(f"start={turn.start:.1f}s stop={turn.end:.1f}s speaker_{speaker}")
+
     segment_duration = 30  # seconds
     print("Video duration = ", video.duration)
     transcripts = []
