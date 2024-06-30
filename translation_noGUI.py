@@ -66,10 +66,9 @@ def transcribe_video(filepath):
     wav_file = "./wav-files/audio.wav"
     audio.write_audiofile(mp3_file)
 
-    audio = AudioSegment.from_mp3(mp3_file)
-    audio.export(wav_file, format="wav")
-
-    audio = wave.open(wav_file, mode='rb')
+    audio_wav = AudioSegment.from_mp3(mp3_file)
+    audio_wav.export(wav_file, format="wav")
+    #audio = wave.open(wav_file, mode='rb')
 
     # apply pretrained pipeline
     diarization = pipeline(wav_file)
@@ -78,8 +77,58 @@ def transcribe_video(filepath):
     # TODO: make array of spekaers = [speaker1, speaker2, speaker1, ...] and their times
     # times = [[start stop], [start stop], ....]
     # then make new wav files for speaker1, speaker2, speaker1...etc
+    speakers = []
+    start = []
+    stop = []
+    previous_speaker = ""
     for turn, _, speaker in diarization.itertracks(yield_label=True):
         print(f"start={turn.start:.1f}s stop={turn.end:.1f}s speaker_{speaker}")
+        if speaker == previous_speaker:
+             stop[-1] = turn.end
+             continue
+        else:
+            speakers.append(speaker)
+            previous_speaker = speaker
+            start.append(turn.start)
+            stop.append(turn.end)
+
+    print(speakers)
+    print(start)
+    print(stop)
+
+    start[0] = 0
+    start[1:-1] = stop[0:-2]
+    print(speakers)
+    print(start)
+    print(stop)
+
+    N_speakers = len(speakers)
+    for idx, speaker in enumerate(speakers):
+        start_idx = round(start[idx]*1e3) 
+        end_idx = round(stop[idx]*1e3) 
+        start_time = start[idx]
+        end_time = stop[idx]
+        if idx == 0:
+             start_idx = 0
+             start_time = 0
+        elif idx == N_speakers-1: 
+            end_idx = round(audio.duration)
+            end_time = audio.duration
+        #chunk = audio_wav[start_idx:end_idx]
+        chunk = audio.subclip(start_time, end_time) # what time format, s, ms??
+        chunk_name = f"chunk_{idx+1}.mp3"
+        chunk.write_audiofile(chunk_name)
+
+        # Pass the audio segment to WISPR for speech recognition
+        audio_chunk = open(chunk_name, "rb")
+        transcripting = openai.audio.transcriptions.create(model="whisper-1", file=audio_chunk).text
+        
+        print(transcripting)
+        # TODO: text to audio. select speaker voice
+
+
+        input("press any key to contrinue")
+
 
     segment_duration = 30  # seconds
     print("Video duration = ", video.duration)
