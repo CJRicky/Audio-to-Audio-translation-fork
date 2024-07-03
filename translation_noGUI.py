@@ -26,114 +26,31 @@ with open("HF_token.txt") as f:
 pipeline = Pipeline.from_pretrained(
     "pyannote/speaker-diarization-3.1",
     use_auth_token=HF_key)
-
 # send pipeline to GPU (when available)
-#import torch
-#pipeline.to(torch.device("cuda"))
+import torch
+pipeline.to(torch.device("cuda"))
 
 
 # Use your own API key
 with open("openai-api-key.txt") as f:
 	openai.api_key = f.read().strip()	
 
-transcript = []
+#transcript = []
 
-conversation_history = []
+#bot_response = None
 
-bot_response = None
+#prompt = None
 
-prompt = None
-
-filepath = None
-
-current_filepath = None
-
-two_people = False
+#filepath = None
 
 ############# setup and load TTS-model #####################
 syn, syn2 = load_tts_model()
 ############################################################
-
-#For generating the transcript with whisper
-def transcribe_video(filepath):
-
-    print("file =")
-    print(filepath)
-    video = VideoFileClip(filepath)
-    audio = video.audio
-
-    mp3_file = "./mp3-files/audio.mp3"
-    wav_file = "./wav-files/audio.wav"
-    audio.write_audiofile(mp3_file)
-
-    audio_wav = AudioSegment.from_mp3(mp3_file)
-    audio_wav.export(wav_file, format="wav")
-    #audio = wave.open(wav_file, mode='rb')
-
-    # apply pretrained pipeline
-    diarization = pipeline(wav_file)
-
-    # print the result
-    # TODO: make array of spekaers = [speaker1, speaker2, speaker1, ...] and their times
-    # times = [[start stop], [start stop], ....]
-    # then make new wav files for speaker1, speaker2, speaker1...etc
-    speakers = []
-    start = []
-    stop = []
-    previous_speaker = ""
-    for turn, _, speaker in diarization.itertracks(yield_label=True):
-        print(f"start={turn.start:.1f}s stop={turn.end:.1f}s speaker_{speaker}")
-        if speaker == previous_speaker:
-             stop[-1] = turn.end
-             continue
-        else:
-            speakers.append(speaker)
-            previous_speaker = speaker
-            start.append(turn.start)
-            stop.append(turn.end)
-
-    print(speakers)
-    print(start)
-    print(stop)
-
-    start[0] = 0
-    start[1:-1] = stop[0:-2]
-    print(speakers)
-    print(start)
-    print(stop)
-
-    N_speakers = len(speakers)
-    for idx, speaker in enumerate(speakers):
-        start_idx = round(start[idx]*1e3) 
-        end_idx = round(stop[idx]*1e3) 
-        start_time = start[idx]
-        end_time = stop[idx]
-        if idx == 0:
-             start_idx = 0
-             start_time = 0
-        elif idx == N_speakers-1: 
-            end_idx = round(audio.duration)
-            end_time = audio.duration
-        #chunk = audio_wav[start_idx:end_idx]
-        chunk = audio.subclip(start_time, end_time) # what time format, s, ms??
-        chunk_name = f"chunk_{idx+1}.mp3"
-        chunk.write_audiofile(chunk_name)
-
-        # Pass the audio segment to WISPR for speech recognition
-        audio_chunk = open(chunk_name, "rb")
-        transcripting = openai.audio.transcriptions.create(model="whisper-1", file=audio_chunk).text
-        
-        print(transcripting)
-        # TODO: text to audio. select speaker voice
-
-
-        input("press any key to contrinue")
-
-
+def run_whisper(audio):
     segment_duration = 30  # seconds
-    print("Video duration = ", video.duration)
+    print("Audio duration = ", audio.duration)
     transcripts = []
-    num_segments = math.ceil(video.duration / segment_duration)
+    num_segments = math.ceil(audio.duration / segment_duration)
     print("Number of segments =", num_segments)
 
     # Loop through the segments
@@ -141,15 +58,15 @@ def transcribe_video(filepath):
         # Calculate the start and end times for the current segment
         print("Transcribing segment nr: ", i+1)
         start_time = i * segment_duration
-        end_time = min((i + 1) * segment_duration, video.duration)
-        segment = video.subclip(start_time, end_time)
+        end_time = min((i + 1) * segment_duration, audio.duration)
+        segment = audio.subclip(start_time, end_time)
         print("Audio-segment duration: ", segment.duration)
         segment_name = f"segment_{i+1}.mp3"
-        segment.audio.write_audiofile(segment_name)
+        segment.write_audiofile(segment_name)
 
         # Pass the audio segment to WISPR for speech recognition
-        audio = open(segment_name, "rb")
-        transcripting = openai.audio.transcriptions.create(model="whisper-1", file=audio).text
+        audio_segment = open(segment_name, "rb")
+        transcripting = openai.audio.transcriptions.create(model="whisper-1", file=audio_segment).text
         transcripts.append(transcripting)
         os.remove(segment_name)
     transcript = "\n".join(transcripts)
@@ -172,24 +89,8 @@ def generate_response(transcript):
 
     return bot_first_response
 
-def audio_output_TTS(bot_response):
-        outputs = syn.tts(bot_response)
-        syn.save_wav(outputs, "audio-tts.wav")
 
-
-def translate(youtube_link):
-
-    # Use pytube to download the YouTube video
-    yt = YouTube(youtube_link)
-    stream = yt.streams.get_highest_resolution()
-    file = stream.download(output_path='static', filename='my_video.mp4')
-    filepath = os.path.join('static', 'my_video.mp4')
-
-    # Transcribe video and generate timestamped transcript
-    transcript = transcribe_video(filepath)
-    print("Transcript youtubevid =")
-    print(transcript)
-
+def get_translation(transcript): 
     #opeanAI for the chat converation:
     nltk.download('punkt')
 
@@ -231,11 +132,106 @@ def translate(youtube_link):
 
             responses.append(response)
 
-        joined_response = ' '.join(responses)
-        bot_response = joined_response
+        bot_response = ' '.join(responses)
+    return  bot_response
+
+def audio_output_TTS(bot_response, filename):
+        outputs = syn.tts(bot_response)
+        syn.save_wav(outputs, filename)
 
 
-    audio_output_TTS(bot_response)
+#For generating the transcript with whisper
+def transcribe_video(filepath):
+
+    print("file =")
+    print(filepath)
+    video = VideoFileClip(filepath)
+    audio = video.audio
+
+    mp3_file = "./mp3-files/audio.mp3"
+    wav_file = "./wav-files/audio.wav"
+    audio.write_audiofile(mp3_file)
+
+    audio_wav = AudioSegment.from_mp3(mp3_file)
+    audio_wav.export(wav_file, format="wav")
+    #audio = wave.open(wav_file, mode='rb')
+
+    # apply pretrained pipeline
+    print("Finding speakers (start and stop time for each speaker)...")
+    diarization = pipeline(wav_file)
+
+    speakers = []
+    start = []
+    stop = []
+    previous_speaker = ""
+    for turn, _, speaker in diarization.itertracks(yield_label=True):
+        print(f"start={turn.start:.1f}s stop={turn.end:.1f}s speaker_{speaker}")
+        if speaker == previous_speaker:
+             stop[-1] = turn.end
+             continue
+        else:
+            speakers.append(speaker)
+            previous_speaker = speaker
+            start.append(turn.start)
+            stop.append(turn.end)
+
+    print(speakers)
+    start[0] = 0
+    print(start)
+    print(stop)
+    #start[1:-1] = stop[0:-2]
+    #print(speakers)
+    #print(start)
+    #print(stop)
+
+    print("Transcribing using Whisper...")
+    N_speakers = len(speakers)
+    for idx, speaker in enumerate(speakers):
+        start_idx = round(start[idx]*1e3) 
+        end_idx = round(stop[idx]*1e3) 
+        start_time = start[idx]
+        end_time = stop[idx]
+        if idx == 0:
+             start_idx = 0
+             start_time = 0
+        elif idx == N_speakers-1: 
+            end_idx = round(audio.duration)
+            end_time = audio.duration
+        #chunk = audio_wav[start_idx:end_idx]
+        print(audio.duration)
+        chunk = audio.subclip(start_time, end_time) # what time format, s, ms??
+        #chunk_name = f"chunk_{idx+1}.mp3"
+        #chunk.write_audiofile(chunk_name)
+
+        # Pass the audio segment to WISPR for speech recognition
+        #audio_chunk = open(chunk_name, "rb")
+        transcript = run_whisper(chunk)   
+        print(transcript)
+        
+        # Translate
+        translation = get_translation(transcript)
+        print(translation)
+
+
+        # Text to audio. select speaker voice
+        filename = "./wav-files/audio-tts-1.wav"
+        audio_output_TTS(translation, filename)
+
+        input("press any key to contrinue")
+
+     # TODO: join all the wav-files into one
+
+
+def translate(youtube_link):
+
+    # Use pytube to download the YouTube video
+    yt = YouTube(youtube_link)
+    stream = yt.streams.get_highest_resolution()
+    file = stream.download(output_path='static', filename='my_video.mp4')
+    filepath = os.path.join('static', 'my_video.mp4')
+
+    # Transcribe video and generate timestamped transcript
+    transcribe_video(filepath)
     
 if __name__== "__main__":
     translate(str(sys.argv[1]))
