@@ -1,5 +1,7 @@
 from pytube import YouTube
+
 import os
+from glob import glob
 
 import sys
 
@@ -34,14 +36,6 @@ pipeline.to(torch.device("cuda"))
 # Use your own API key
 with open("openai-api-key.txt") as f:
 	openai.api_key = f.read().strip()	
-
-#transcript = []
-
-#bot_response = None
-
-#prompt = None
-
-#filepath = None
 
 ############# setup and load TTS-model #####################
 syn, syn2 = load_tts_model()
@@ -92,7 +86,7 @@ def generate_response(transcript):
 
 def get_translation(transcript): 
     #opeanAI for the chat converation:
-    nltk.download('punkt')
+    nltk.download('punkt')   # Move to run just once? 
 
     if len(word_tokenize(transcript)) <= 3000:
 
@@ -209,22 +203,58 @@ def transcribe_video(filepath):
         print(transcript)
         
         # Translate
-        translation = get_translation(transcript)
-        print(translation)
-
-
+        if len(word_tokenize(str(transcript))) > 0:
+               translation = get_translation(transcript)
+               print(translation)
+        else:
+             continue # nothing to translate
+        
         # Text to audio. select speaker voice
-        filename = "./wav-files/audio-tts-1.wav"
+        filename = f"./wav-files/audio-tts-{idx+1}.wav"
+        print("Writing translation to: ", filename)
         audio_output_TTS(translation, filename)
 
-        input("press any key to contrinue")
+    # join all the wav-files into one
+    wav_files = glob('./wav-files/audio-tts-*.wav')
+    print("wav-files: ")
+    print(wav_files[0])
 
-     # TODO: join all the wav-files into one
+    numbers = []
+    for wf in wav_files:
+        result = re.search('tts-(.*).wav', wf)
+        numbers.append(int(result.group(1)))
+
+    sortIdx = [i[0] for i in sorted(enumerate(numbers), key=lambda x:x[1])]
+
+    wav_files = [wav_files[i] for i in sortIdx]
+
+    infiles = wav_files
+    outfile = "./wav-files/audio-translated.wav"
+    data= []
+    for infile in infiles:
+        w = wave.open(infile, 'rb')
+        data.append( [w.getparams(), w.readframes(w.getnframes())] )
+        w.close()
+        
+    output = wave.open(outfile, 'wb')
+    output.setparams(data[0][0])
+    for i in range(len(data)):
+        output.writeframes(data[i][1])
+    output.close()
+
+    # TODO: clear tmp-files.
+    # TODO: use different voices
+    # TODO: replace Ö with OE, Ä with AE, and  Å witg AA. Give intruction to chatgpt?
+    # TODO: the response from TTS was sometimes weird. Find out why...
+
+    input("press any key to contrinue")
+
 
 
 def translate(youtube_link):
 
     # Use pytube to download the YouTube video
+    # TODO: only download audio?
     yt = YouTube(youtube_link)
     stream = yt.streams.get_highest_resolution()
     file = stream.download(output_path='static', filename='my_video.mp4')
