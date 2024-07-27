@@ -1,4 +1,5 @@
 from pytube import YouTube
+import yt_dlp # replacing pytube
 
 import os
 from glob import glob
@@ -70,16 +71,23 @@ def run_whisper(audio):
 #passing transcript or each chucks to chatgpt
 def generate_response(transcript):
 
-    prompt = f"Translate {transcript} to english"
+    #prompt = f"Translate {transcript} to english."
+    prompt = f"Translate the following text to english: {transcript}"
 
     completion = openai.chat.completions.create(
     model="gpt-3.5-turbo",
     messages=[
-            {"role": "system", "content": "You're a proffesional language translator"},
+            {"role": "system", "content": "You're a proffesional language translator. In all sentances in the translation: Replace '...' with '.',\
+              '. And' with ' and' and translate letters 'å', 'ä', and 'ö' to their English equivalents 'aa', 'ae', and 'oe'.\
+              Just return the translation. No text before."},
             {"role": "user", "content": prompt}
     ]
     )
     bot_first_response = completion.choices[0].message.content
+
+    bot_first_response.replace("...",".")
+    bot_first_response.replace(". And",", and")
+    bot_first_response.replace(". and",", and")
 
     return bot_first_response
 
@@ -214,6 +222,8 @@ def transcribe_video(filepath):
         print("Writing translation to: ", filename)
         audio_output_TTS(translation, filename)
 
+        print("File " + filename + " done!")
+
     # join all the wav-files into one
     wav_files = glob('./wav-files/audio-tts-*.wav')
     print("wav-files: ")
@@ -244,8 +254,6 @@ def transcribe_video(filepath):
 
     # TODO: clear tmp-files.
     # TODO: use different voices
-    # TODO: replace Ö with OE, Ä with AE, and  Å witg AA. Give intruction to chatgpt?
-    # TODO: the response from TTS was sometimes weird. Find out why...
 
     input("press any key to contrinue")
 
@@ -255,13 +263,31 @@ def translate(youtube_link):
 
     # Use pytube to download the YouTube video
     # TODO: only download audio?
-    yt = YouTube(youtube_link)
-    stream = yt.streams.get_highest_resolution()
-    file = stream.download(output_path='static', filename='my_video.mp4')
+    use_pytube = False
+    filename = 'my_video.mp4'
+    if use_pytube:
+        yt = YouTube(youtube_link)
+        stream = yt.streams.get_highest_resolution()
+        file = stream.download(output_path='./youtube-dl', filename=filename)
+    else:      
+        yt_opts = {'outtmpl': filename}
+
+        ydl = yt_dlp.YoutubeDL(yt_opts)
+        
+        ydl.download(youtube_link)
+
     filepath = os.path.join('static', 'my_video.mp4')
 
     # Transcribe video and generate timestamped transcript
     transcribe_video(filepath)
     
 if __name__== "__main__":
-    translate(str(sys.argv[1]))
+    if __debug__:
+        print('Debug ON')
+        link = 'https://www.youtube.com/watch?v=z-Rpmb9wxK0'
+    else:
+        print('Debug OFF')
+        link = str(sys.argv[1])
+        link = 'https://www.youtube.com/watch?v=z-Rpmb9wxK0'
+        
+    translate(youtube_link=link)

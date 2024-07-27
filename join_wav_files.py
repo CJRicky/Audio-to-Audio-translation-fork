@@ -1,6 +1,7 @@
 from pydub import AudioSegment
 from glob import glob
 import re
+import wave
 
 # join all the wav-files into one
 wav_files = glob('./wav-files/audio-tts-*.wav')
@@ -16,26 +17,8 @@ sortIdx = [i[0] for i in sorted(enumerate(numbers), key=lambda x:x[1])]
 
 wav_files = [wav_files[i] for i in sortIdx]
 
-"""for wf_idx, wf in enumerate(wav_files):
-    print(wf_idx)
-    sound_tmp = AudioSegment.from_wav(wf)
-    if wf_idx == 0:
-            print("hej")
-            print(wf)
-            combined_sounds = sound_tmp
-    else:
-            print("tja")
-            print(wf)
-            combined_sounds + sound_tmp
-
-combined_sounds.export("./wav-files/audio-translated.wav", format="wav")"""
-
-
-import wave
-
 infiles = wav_files
 outfile = "./wav-files/audio-translated.wav"
-
 data= []
 for infile in infiles:
     w = wave.open(infile, 'rb')
